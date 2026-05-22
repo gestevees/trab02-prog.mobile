@@ -1,20 +1,60 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import * as React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
 
-export default function App() {
+// 1. Importe as suas telas
+import HomeScreen from "./src/screens/HomeScreen";
+import ScannerScreen from "./src/screens/ScannerScreen";
+import HistoryScreen from "./src/screens/HistoryScreen";
+import ConfirmationScreen from "./src/screens/ConfirmationScreen";
+
+// 2. Defina e EXPORTE o tipo com as rotas do app
+export type RootStackParamList = {
+  // 'undefined' significa que a rota não recebe parâmetros
+  Home: undefined;
+
+  // Exemplo caso recebesse parâmetros:
+  // Scanner: { scannerId: string }
+  Scanner: undefined;
+
+  History: undefined;
+
+  Confirmation: {
+    scannedData: string;
+  };
+};
+
+// 3. Passe o tipo criado para o Stack Navigator
+const Stack = createStackNavigator<RootStackParamList>();
+
+export default function App(): JSX.Element {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{ title: "Início" }}
+        />
+
+        <Stack.Screen
+          name="Scanner"
+          component={ScannerScreen}
+          options={{ title: "Escanear QR Code" }}
+        />
+
+        <Stack.Screen
+          name="History"
+          component={HistoryScreen}
+          options={{ title: "Histórico" }}
+        />
+
+        <Stack.Screen
+          name="Confirmation"
+          component={ConfirmationScreen}
+          options={{ title: "Resultado da Leitura" }}
+        />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
