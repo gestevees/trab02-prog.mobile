@@ -6,23 +6,33 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  TouchableOpacity, // ADICIONADO: Para criar o efeito de clique no card
+  Linking,          // ADICIONADO: Para abrir o aplicativo de mapas nativo
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { StackScreenProps } from "@react-navigation/stack";
 import { RootStackParamList } from "../../App";
 import { JSX } from "react/jsx-runtime";
+
 const STORE_KEY = "@scanned_qrcodes";
+
+// Interface atualizada para conter o campo urlOriginal opcional
 interface ScannedRecord {
   id: number;
   data: string;
   timestamp: string;
+  urlOriginal?: string; // ADICIONADO: Mapeia o link que salvamos no ConfirmationScreen
 }
+
 type HistoryScreenProps = StackScreenProps<RootStackParamList, "History">;
+
 export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
   const [records, setRecords] = useState<ScannedRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
   const fetchRecords = async (): Promise<void> => {
     setIsLoading(true);
     try {
@@ -39,27 +49,69 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
       setIsRefreshing(false);
     }
   };
+
   useFocusEffect(
     useCallback(() => {
       fetchRecords();
     }, []),
   );
+
   const onRefresh = useCallback(() => {
     setIsRefreshing(true);
     fetchRecords();
   }, []);
+
+  // ADICIONADO: Função responsável por disparar o app de mapas do celular
+  const abrirMapaCelular = async (url?: string) => {
+    if (!url) {
+      Alert.alert("Aviso", "Este registro não possui coordenadas para abrir no mapa.");
+      return;
+    }
+
+    try {
+      const suportado = await Linking.canOpenURL(url);
+      if (suportado) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Erro", "Não foi possível abrir este link de mapa no dispositivo.");
+      }
+    } catch (error) {
+      console.error("Erro ao tentar abrir o mapa:", error);
+    }
+  };
+
+  // MODIFICADO: Trocamos o <View> raiz por <TouchableOpacity> e adicionamos a estilização condicional
   const renderItem = ({ item }: { item: ScannedRecord }) => (
-    <View style={styles.itemContainer}>
-      <Text style={styles.dataHeader}>Dados do QR Code:</Text>
-      <Text style={styles.dataContent} numberOfLines={1}>
-        {item.data}
-      </Text>
-      <Text style={styles.timestamp}>
-        Salvo em: {new Date(item.timestamp).toLocaleDateString()} às{" "}
-        {new Date(item.timestamp).toLocaleTimeString()}
-      </Text>
-    </View>
+    <TouchableOpacity 
+      onPress={() => abrirMapaCelular(item.urlOriginal)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.itemContainer}>
+        {item.urlOriginal ? (
+          // Layout customizado para a SUA parte de geolocalização
+          <>
+            <Text style={[styles.dataHeader, { color: "#28a745" }]}>
+              🗺️ Localização (Toque para abrir no Mapa)
+            </Text>
+            <Text style={styles.dataContent}>{item.data}</Text>
+          </>
+        ) : (
+          // Layout original mantido para o restante do grupo
+          <>
+            <Text style={styles.dataHeader}>Dados do QR Code:</Text>
+            <Text style={styles.dataContent} numberOfLines={1}>
+              {item.data}
+            </Text>
+          </>
+        )}
+        <Text style={styles.timestamp}>
+          Salvo em: {new Date(item.timestamp).toLocaleDateString()} às{" "}
+          {new Date(item.timestamp).toLocaleTimeString()}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
+
   if (isLoading && records.length === 0) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -68,6 +120,7 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
       </View>
     );
   }
+
   return (
     <View style={styles.container}>
       {records.length === 0 ? (
@@ -93,6 +146,7 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
