@@ -16,15 +16,10 @@ import { StackScreenProps } from "@react-navigation/stack";
 import { RootStackParamList } from "../../App";
 import { JSX } from "react/jsx-runtime";
 
-const STORE_KEY = "@scanned_qrcodes";
+// Interface importada do arquivo compartilhado (antes era duplicada aqui)
+import { ScannedRecord } from "./services/types";
 
-// Interface atualizada para conter o campo urlOriginal opcional
-interface ScannedRecord {
-  id: number;
-  data: string;
-  timestamp: string;
-  urlOriginal?: string; // ADICIONADO: Mapeia o link que salvamos no ConfirmationScreen
-}
+const STORE_KEY = "@scanned_qrcodes";
 
 type HistoryScreenProps = StackScreenProps<RootStackParamList, "History">;
 
@@ -81,6 +76,7 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
   };
 
   // MODIFICADO: Trocamos o <View> raiz por <TouchableOpacity> e adicionamos a estilização condicional
+  // RENDERIZAÇÃO: Diferencia visualmente os 3 tipos de registro
   const renderItem = ({ item }: { item: ScannedRecord }) => (
     <TouchableOpacity 
       onPress={() => abrirMapaCelular(item.urlOriginal)}
@@ -88,15 +84,23 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
     >
       <View style={styles.itemContainer}>
         {item.urlOriginal ? (
-          // Layout customizado para a SUA parte de geolocalização
+          // Layout de geolocalização (🗺️ verde)
           <>
             <Text style={[styles.dataHeader, { color: "#28a745" }]}>
               🗺️ Localização (Toque para abrir no Mapa)
             </Text>
             <Text style={styles.dataContent}>{item.data}</Text>
           </>
+        ) : item.tipo === "produto" ? (
+          // Layout de produto (🛒 laranja)
+          <>
+            <Text style={[styles.dataHeader, { color: "#ff6600" }]}>
+              🛒 Produto
+            </Text>
+            <Text style={styles.dataContent}>{item.data}</Text>
+          </>
         ) : (
-          // Layout original mantido para o restante do grupo
+          // Layout genérico / patrimônio (mantido)
           <>
             <Text style={styles.dataHeader}>Dados do QR Code:</Text>
             <Text style={styles.dataContent} numberOfLines={1}>
