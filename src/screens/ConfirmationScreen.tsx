@@ -88,10 +88,9 @@ export default function ConfirmationScreen({
     }
   };
 
-  // -------------------------------------------------------
   // FUNÇÃO: storeGenerico
   // Salva dados genéricos (texto puro) no AsyncStorage
-  // -------------------------------------------------------
+
   const storeGenerico = async (data: string): Promise<void> => {
     try {
       const existingData = await AsyncStorage.getItem(STORE_KEY);
@@ -108,10 +107,16 @@ export default function ConfirmationScreen({
 
       dataArray.push(newRecord);
       await AsyncStorage.setItem(STORE_KEY, JSON.stringify(dataArray));
-      setStatus("Sucesso! O dado foi guardado no armazenamento local.");
+      
+      // MARCELA (ATIVIDADE 3): AVISO AMIGÁVEL NA TELA
+      // Em vez de dar mensagem de "Sucesso", avisa o usuário que 
+      // aquele QR Code não possui formato válido para o aplicativo.
+
+      setStatus("Aviso: O QR Code lido é inválido ou apenas um texto comum.");
+      
     } catch (e) {
       console.error("Erro ao guardar o dado:", e);
-      setStatus("Falha ao guardar o dado.");
+      setStatus("Falha ao processar o QR Code.");
     }
   };
 
@@ -338,27 +343,6 @@ export default function ConfirmationScreen({
         <View>
           <Text style={styles.dataLabel}>Dado Bruto Lido:</Text>
           <Text style={styles.dataText}>{scannedData}</Text>
-
-          <Text style={styles.actionsHeader}>Ações Padrão (4 Ações)</Text>
-          <Button
-            title="Executar Ação 1"
-            onPress={() => alert("Ação 1 executada")}
-          />
-          <View style={styles.miniSpacer} />
-          <Button
-            title="Executar Ação 2"
-            onPress={() => alert("Ação 2 executada")}
-          />
-          <View style={styles.miniSpacer} />
-          <Button
-            title="Executar Ação 3"
-            onPress={() => alert("Ação 3 executada")}
-          />
-          <View style={styles.miniSpacer} />
-          <Button
-            title="Executar Ação 4"
-            onPress={() => alert("Ação 4 executada")}
-          />
         </View>
       )}
 
