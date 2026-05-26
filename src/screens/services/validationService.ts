@@ -2,9 +2,9 @@
 // SERVIÇO DE VALIDAÇÃO - validationService.ts
 // ==============================================================
 // Centraliza a lógica de classificação dos QR Codes escaneados.
-// Antes, essa lógica estava espalhada no useEffect do ConfirmationScreen,
-// usando try/catch do JSON.parse como mecanismo de branching.
-// Agora fica isolada, testável e reutilizável.
+// NOVA VERSÃO: Atua como um validador inteligente e flexível.
+// Lê na ordem correta para não quebrar regras específicas (Mapas e IDs numéricos)
+// e inclui adaptadores para conciliar os formatos exigidos pelo projeto.
 
 import {
   TipoQRCode,
@@ -15,9 +15,6 @@ import {
 // ==============================================================
 // INTERFACE: Resultado da classificação
 // ==============================================================
-// Retorno padronizado da função classificarQRCode.
-// 'dadosParsed' só é preenchido quando o QR Code é JSON válido
-// (patrimônio ou produto). Para geolocalização e genérico, é undefined.
 export interface ResultadoClassificacao {
   tipo: TipoQRCode;
   dadosParsed?: ProdutoQRData | PatrimonioQRData;
@@ -27,62 +24,99 @@ export interface ResultadoClassificacao {
 // FUNÇÃO PRINCIPAL: classificarQRCode
 // ==============================================================
 // Recebe o texto bruto lido pelo scanner e determina qual tipo
-// de QR Code ele representa, seguindo a ordem de prioridade:
+// de QR Code ele representa, seguindo a NOVA ordem de prioridade:
 //
-//   1. Tenta JSON.parse:
-//      a) tipo === "patrimonio" + id_equipamento → PATRIMÔNIO
-//      b) tipo === "produto" + id_produto + nome + preco → PRODUTO
-//      c) outro JSON qualquer → GENÉRICO
-//   2. Se JSON.parse falha (não é JSON):
-//      a) Regex /@|=/ encontra coordenadas → GEOLOCALIZAÇÃO
-//      b) Sem match → GENÉRICO
+//   1. Regex /@|=/ encontra coordenadas → GEOLOCALIZAÇÃO
+//   2. Texto contendo APENAS números → PATRIMÔNIO
+//   3. Tenta JSON.parse:
+//      a) Traduz o JSON do PDF para o formato da tela → PRODUTO
+//      b) Formato exato da tela → PRODUTO / PATRIMÔNIO
+//      c) Falha na validação de objeto → ERRO DE SEGURANÇA
+//   4. Se tudo falhar ou der erro → GENÉRICO (Aviso na tela)
+// ==============================================================
 export const classificarQRCode = (data: string): ResultadoClassificacao => {
+
   // -------------------------------------------------------
-  // PASSO 1: Tentar interpretar como JSON
+  // PASSO 1: TENTA MAPA (ATIVIDADE 1 - GEOLOCALIZAÇÃO)
+  // Lemos o mapa antes do JSON para evitar que a URL cause erros de conversão
+  // -------------------------------------------------------
+  const geoRegex = /[@=](-?\d+\.\d+),(-?\d+\.\d+)/;
+  const match = data.match(geoRegex);
+  
+  if (match) {
+    return { tipo: 'geolocalizacao' };
+  }
+
+  // -------------------------------------------------------
+  // PASSO 2: TENTA ESTOQUE/PATRIMÔNIO (ATIVIDADE 2 - APIS DE TERCEIROS)
+  // O requisito é: "Lê o QR Code contendo apenas um ID (ex: 1002)"
+  // -------------------------------------------------------
+  const textoLimpo = data.trim();
+  
+  // Regex testa se a string contém EXATAMENTE E APENAS NÚMEROS:
+  if (/^\d+$/.test(textoLimpo)) {
+     return {
+       tipo: 'patrimonio',
+       // Cria um JSON artificial ("Adapter") para a tela aceitar o ID
+       dadosParsed: {
+         tipo: 'patrimonio',
+         id_equipamento: textoLimpo 
+       } as any 
+     };
+  }
+
+  // -------------------------------------------------------
+  // PASSO 3: TENTA JSON E VALIDAÇÃO DE SEGURANÇA (ATIVIDADES 3 E 4)
   // -------------------------------------------------------
   try {
     const parsed = JSON.parse(data);
 
-    // Verifica se é um QR Code de Patrimônio/Estoque
-    if (parsed.tipo === 'patrimonio' && parsed.id_equipamento) {
+    // SEGURANÇA EXTRA: Se não for um objeto real (ex: texto solto, array),
+    // força o erro para cair no 'catch' e exibir a mensagem amigável.
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error("Formato JSON inválido (não é um objeto de dados).");
+    }
+
+    // TRADUTOR DO CARRINHO (ATIVIDADE 4):
+    // O PDF do projeto usa "nome", "descricao" e "valor".
+    // A tela de confirmação exige "tipo", "id_produto", "nome" e "preco".
+    if (parsed.nome && parsed.descricao && typeof parsed.valor === 'number') {
       return {
-        tipo: 'patrimonio',
-        dadosParsed: parsed as PatrimonioQRData,
+        tipo: 'produto',
+        dadosParsed: {
+          tipo: 'produto',
+          id_produto: Date.now(), // Gera um ID provisório
+          nome: parsed.nome,
+          descricao: parsed.descricao,
+          preco: parsed.valor // Traduz "valor" para "preco"
+        } as any,
       };
     }
 
-    // Verifica se é um QR Code de Produto
+    // Mantém a compatibilidade caso gerem o JSON exato da tela de confirmação (Produto)
     if (
       parsed.tipo === 'produto' &&
       parsed.id_produto &&
       parsed.nome &&
       typeof parsed.preco === 'number'
     ) {
-      return {
-        tipo: 'produto',
-        dadosParsed: parsed as ProdutoQRData,
-      };
+      return { tipo: 'produto', dadosParsed: parsed as ProdutoQRData };
     }
 
-    // JSON válido mas não reconhecido como tipo específico → genérico
+    // Mantém a compatibilidade caso gerem o JSON exato da tela de confirmação (Patrimônio)
+    if (parsed.tipo === 'patrimonio' && parsed.id_equipamento) {
+      return { tipo: 'patrimonio', dadosParsed: parsed as PatrimonioQRData };
+    }
+
+    // É JSON, mas não tem chaves reconhecidas (ex: bula de remédio) → erro genérico
     return { tipo: 'generico' };
-  } catch {
+    
+  } catch (erro) {
     // -------------------------------------------------------
-    // PASSO 2: Não é JSON — verificar se é URL de geolocalização
+    // PASSO 4: CENÁRIO GENÉRICO (FALLBACK / ERRO)
+    // Se não era mapa, não era ID numérico, e falhou ao converter/validar o JSON,
+    // o app retorna 'generico' para exibir sua mensagem de erro amigável.
     // -------------------------------------------------------
-    // Regex flexível: captura coordenadas após '@' ou '='
-    // Exemplos que casam:
-    //   https://maps.google.com/?q=@-23.5505,-46.6333
-    //   https://www.google.com/maps/@-23.5505,-46.6333,15z
-    //   https://maps.app.goo.gl/...?q=-23.5505,-46.6333
-    const geoRegex = /[@=](-?\d+\.\d+),(-?\d+\.\d+)/;
-    const match = data.match(geoRegex);
-
-    if (match) {
-      return { tipo: 'geolocalizacao' };
-    }
-
-    // Nem JSON, nem geolocalização → genérico
     return { tipo: 'generico' };
   }
 };
