@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# project analysis docs
+analise_completa_projeto.md
+

@@ -6,8 +6,7 @@ Este guia ensina como gerar e testar os **3 principais modelos de QR Code** acei
 
 ## 🛠️ Onde gerar os QR Codes?
 Para testar, você pode usar qualquer gerador de QR Code gratuito na internet. Recomendamos os seguintes:
-* [QR Code Generator (br.qr-code-generator.com)](https://br.qr-code-generator.com/) — Escolha a opção **Texto** para produtos/estoque, ou **URL** para mapas.
-* [QR Code Monkey (qrcode-monkey.com)](https://www.qrcode-monkey.com/) — Excelente para gerar códigos limpos.
+* [QR Code Generator (br.qr-code-generator.com)](https://qr.io/pt/) — Escolha a opção **Texto** para produtos/estoque, ou **Link** para mapas.
 
 ---
 
@@ -16,22 +15,22 @@ Para testar, você pode usar qualquer gerador de QR Code gratuito na internet. R
 O aplicativo utiliza uma expressão regular flexível que procura por coordenadas de latitude e longitude após o caractere `@` ou `=`. Qualquer link do Google Maps contendo esses caracteres será identificado e mapeado.
 
 ### 📝 Como gerar:
-No gerador de QR Code, escolha a categoria **URL** ou **Texto** e insira um dos links abaixo.
+No gerador de QR Code, escolha a categoria **Link** ou **Texto** e insira um dos links abaixo.
 
 ### 📋 Exemplos Prontos (Copie e Cole):
 
 * **Exemplo A (Grande Canyon - EUA):**
-  ```text
+
   https://www.google.com/maps/place/Grand+Canyon/@36.0997563,-112.1514534,14z
-  ```
+  
 * **Exemplo B (Torre Eiffel - Paris):**
-  ```text
+
   https://www.google.com/maps/place/Torre+Eiffel/@48.8583701,2.2919064,17z
-  ```
+  
 * **Exemplo C (Formato Alternativo com `=`):**
-  ```text
+
   https://maps.google.com/?q=-23.5505,-46.6333
-  ```
+  
 
 ---
 
@@ -40,22 +39,22 @@ No gerador de QR Code, escolha a categoria **URL** ou **Texto** e insira um dos 
 Para o aplicativo reconhecer o QR Code como um **Produto comercial** e permitir a adição ao carrinho de compras, o conteúdo gravado no código deve ser um **JSON estruturado**.
 
 ### 📝 Como gerar:
-No gerador de QR Code, escolha obrigatoriamente a opção **Texto** ou **Texto Puro** e cole o JSON exatamente como está abaixo.
+No gerador de QR Code, escolha obrigatoriamente a opção **Texto** e cole o JSON exatamente como está abaixo.
 
 ### 📋 Exemplos Prontos (Copie e Cole):
 
 * **Exemplo A (Teclado Mecânico):**
-  ```json
+
   {"tipo":"produto","id_produto":1,"nome":"Teclado Mecânico RGB","preco":299.90}
-  ```
+  
 * **Exemplo B (Mouse Gamer):**
-  ```json
+
   {"tipo":"produto","id_produto":2,"nome":"Mouse Gamer Wireless","preco":189.50}
-  ```
+  
 * **Exemplo C (Monitor UltraWide):**
-  ```json
+
   {"tipo":"produto","id_produto":3,"nome":"Monitor LG UltraWide 29","preco":1249.00}
-  ```
+  
 
 ---
 
@@ -72,17 +71,17 @@ No gerador de QR Code, escolha obrigatoriamente a opção **Texto** ou **Texto P
 ### 📋 Exemplos Prontos (Copie e Cole):
 
 * **Exemplo A (Equipamento de TI ID #3):**
-  ```json
+
   {"tipo":"patrimonio","id_equipamento":3}
-  ```
+  
 * **Exemplo B (Equipamento de TI ID #7):**
-  ```json
+
   {"tipo":"patrimonio","id_equipamento":7}
-  ```
+  
 * **Exemplo C (Equipamento de TI ID #12):**
-  ```json
+
   {"tipo":"patrimonio","id_equipamento":12}
-  ```
+  
 
 ---
 
