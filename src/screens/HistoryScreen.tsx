@@ -29,7 +29,6 @@ interface ScannedRecord {
 
 const STORE_KEY = "@scanned_qrcodes";
 
-// Helper: mostra confirmação no web (window.confirm) e no nativo (Alert.alert)
 const confirmar = (titulo: string, mensagem: string, onConfirm: () => void) => {
   if (Platform.OS === "web") {
     if (window.confirm(`${titulo}\n\n${mensagem}`)) {
@@ -48,12 +47,8 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  // Função para extrair dados do JSON do QR code
   const extrairDadosQRCode = (item: any): ScannedRecord => {
-    // --- CASO 1: produto salvo pela ConfirmationScreen via handleAddToCart ---
-    // O record tem tipo="produto" e campos nome/preco diretamente na raiz
     if (item.tipo === "produto") {
-      // Tenta pegar nome e preco direto dos campos raiz (salvos pelo cartService)
       const nomeRaiz = item.nome || item.nomeProduto;
       const valorRaiz =
         typeof item.preco === "number"
@@ -73,7 +68,6 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
         };
       }
 
-      // Tenta parsear o campo data como JSON (outro formato possível)
       if (item.data && typeof item.data === "string") {
         try {
           const parsed = JSON.parse(item.data);
@@ -91,7 +85,6 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
       }
     }
 
-    // --- CASO 2: item salvo com campo data como JSON do QR code ---
     if (item.data && typeof item.data === "string") {
       try {
         const parsed = JSON.parse(item.data);
@@ -108,7 +101,6 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
       } catch (_) {}
     }
 
-    // --- CASO 3: fallback genérico ---
     return {
       id: item.id,
       nome: item.nome || "Sem nome",
@@ -227,7 +219,6 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
 
   return (
     <View style={styles.container}>
-      {/* Área scrollável — ocupa todo espaço disponível */}
       <View style={styles.listArea}>
         {records.length === 0 ? (
           <View style={styles.center}>
@@ -245,7 +236,6 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
               <Text style={styles.clearAllButtonText}>🗑️ Limpar Histórico</Text>
             </TouchableOpacity>
 
-            {/* FlatList com style flex:1 — essencial para scroll no Expo Web */}
             <FlatList<ScannedRecord>
               style={styles.flatList}
               data={records}
@@ -261,7 +251,6 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
         )}
       </View>
 
-      {/* Barra do totalizador — filho normal do flex, fica sempre no rodapé */}
       <View style={styles.totalContainer}>
         <Text style={styles.totalLabel}>Total do carrinho</Text>
         <Text style={styles.totalValue}>
@@ -284,11 +273,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
-  // Ocupa todo o espaço vertical restante acima do totalContainer
   listArea: {
     flex: 1,
   },
-  // flex:1 no próprio FlatList é obrigatório para scroll no Expo Web
   flatList: {
     flex: 1,
   },
@@ -365,7 +352,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 14,
   },
-  // Sem position:absolute — é filho normal, sempre visível no rodapé
   totalContainer: {
     backgroundColor: "#ffffff",
     borderTopWidth: 1,
