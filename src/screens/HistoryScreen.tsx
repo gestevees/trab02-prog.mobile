@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from "react";
+import * as React from "react";
+import { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -6,38 +7,131 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  TouchableOpacity, // ADICIONADO: Para criar o efeito de clique no card
-  Linking,          // ADICIONADO: Para abrir o aplicativo de mapas nativo
+  TouchableOpacity,
   Alert,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { StackScreenProps } from "@react-navigation/stack";
-import { RootStackParamList } from "../../App";
-import { JSX } from "react/jsx-runtime";
+import type { RootStackParamList } from "../../App";
 
-// Interface importada do arquivo compartilhado (antes era duplicada aqui)
-import { ScannedRecord } from "./services/types";
+type HistoryScreenProps = StackScreenProps<RootStackParamList, "History">;
+
+interface ScannedRecord {
+  id: number;
+  nome: string;
+  descricao: string;
+  valor: number;
+  timestamp: string;
+  data?: string;
+}
 
 const STORE_KEY = "@scanned_qrcodes";
 
-type HistoryScreenProps = StackScreenProps<RootStackParamList, "History">;
+// Helper: mostra confirmação no web (window.confirm) e no nativo (Alert.alert)
+const confirmar = (titulo: string, mensagem: string, onConfirm: () => void) => {
+  if (Platform.OS === "web") {
+    if (window.confirm(`${titulo}\n\n${mensagem}`)) {
+      onConfirm();
+    }
+  } else {
+    Alert.alert(titulo, mensagem, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Confirmar", style: "destructive", onPress: onConfirm },
+    ]);
+  }
+};
 
 export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
   const [records, setRecords] = useState<ScannedRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
+  // Função para extrair dados do JSON do QR code
+  const extrairDadosQRCode = (item: any): ScannedRecord => {
+    // --- CASO 1: produto salvo pela ConfirmationScreen via handleAddToCart ---
+    // O record tem tipo="produto" e campos nome/preco diretamente na raiz
+    if (item.tipo === "produto") {
+      // Tenta pegar nome e preco direto dos campos raiz (salvos pelo cartService)
+      const nomeRaiz = item.nome || item.nomeProduto;
+      const valorRaiz =
+        typeof item.preco === "number"
+          ? item.preco
+          : typeof item.valor === "number"
+            ? item.valor
+            : null;
+
+      if (nomeRaiz && valorRaiz !== null) {
+        return {
+          id: item.id,
+          nome: nomeRaiz,
+          descricao: item.id_produto ? `ID: ${item.id_produto}` : "Produto",
+          valor: valorRaiz,
+          timestamp: item.timestamp,
+          data: item.data,
+        };
+      }
+
+      // Tenta parsear o campo data como JSON (outro formato possível)
+      if (item.data && typeof item.data === "string") {
+        try {
+          const parsed = JSON.parse(item.data);
+          if (parsed.nome || parsed.preco) {
+            return {
+              id: item.id,
+              nome: parsed.nome || "Produto sem nome",
+              descricao: parsed.id_produto ? `ID: ${parsed.id_produto}` : "Produto",
+              valor: typeof parsed.preco === "number" ? parsed.preco : 0,
+              timestamp: item.timestamp,
+              data: item.data,
+            };
+          }
+        } catch (_) {}
+      }
+    }
+
+    // --- CASO 2: item salvo com campo data como JSON do QR code ---
+    if (item.data && typeof item.data === "string") {
+      try {
+        const parsed = JSON.parse(item.data);
+        if (parsed.tipo === "produto") {
+          return {
+            id: item.id,
+            nome: parsed.nome || "Produto sem nome",
+            descricao: `ID: ${parsed.id_produto || "N/A"}`,
+            valor: typeof parsed.preco === "number" ? parsed.preco : 0,
+            timestamp: item.timestamp,
+            data: item.data,
+          };
+        }
+      } catch (_) {}
+    }
+
+    // --- CASO 3: fallback genérico ---
+    return {
+      id: item.id,
+      nome: item.nome || "Sem nome",
+      descricao: item.descricao || item.data || "Sem descrição",
+      valor: typeof item.valor === "number" ? item.valor : 0,
+      timestamp: item.timestamp,
+      data: item.data,
+    };
+  };
+
   const fetchRecords = async (): Promise<void> => {
     setIsLoading(true);
     try {
-      const existingData = await AsyncStorage.getItem(STORE_KEY);
-      const dataArray: ScannedRecord[] = existingData
-        ? JSON.parse(existingData)
+      const storedValue = await AsyncStorage.getItem(STORE_KEY);
+      const parsed = storedValue ? JSON.parse(storedValue) : [];
+
+      const converted = Array.isArray(parsed)
+        ? parsed.map((item: any) => extrairDadosQRCode(item))
         : [];
-      setRecords(dataArray.sort((a, b) => b.id - a.id));
-    } catch (e) {
-      console.error("Erro ao carregar o histórico:", e);
+
+      setRecords(converted.sort((a, b) => b.id - a.id));
+    } catch (error) {
+      console.error("Erro ao carregar histórico:", error);
       setRecords([]);
     } finally {
       setIsLoading(false);
@@ -56,97 +150,124 @@ export default function HistoryScreen({}: HistoryScreenProps): JSX.Element {
     fetchRecords();
   }, []);
 
-  // ADICIONADO: Função responsável por disparar o app de mapas do celular
-  const abrirMapaCelular = async (url?: string) => {
-    if (!url) {
-      Alert.alert("Aviso", "Este registro não possui coordenadas para abrir no mapa.");
-      return;
-    }
-
-    try {
-      const suportado = await Linking.canOpenURL(url);
-      if (suportado) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert("Erro", "Não foi possível abrir este link de mapa no dispositivo.");
-      }
-    } catch (error) {
-      console.error("Erro ao tentar abrir o mapa:", error);
-    }
+  const deleteItem = (id: number) => {
+    console.log("Deletando item com ID:", id);
+    confirmar(
+      "Deletar item",
+      "Tem certeza que deseja deletar este item?",
+      async () => {
+        try {
+          console.log("Confirmado delete, filtrando array...");
+          const filtered = records.filter((item) => item.id !== id);
+          console.log("Array após filtro:", filtered);
+          setRecords(filtered);
+          await AsyncStorage.setItem(STORE_KEY, JSON.stringify(filtered));
+          console.log("Item deletado com sucesso");
+        } catch (error) {
+          console.error("Erro ao deletar item:", error);
+        }
+      },
+    );
   };
 
-  // MODIFICADO: Trocamos o <View> raiz por <TouchableOpacity> e adicionamos a estilização condicional
-  // RENDERIZAÇÃO: Diferencia visualmente os 3 tipos de registro
-  const renderItem = ({ item }: { item: ScannedRecord }) => (
-    <TouchableOpacity 
-      onPress={() => abrirMapaCelular(item.urlOriginal)}
-      activeOpacity={0.7}
-    >
+  const clearAllItems = () => {
+    confirmar(
+      "Limpar Histórico",
+      "Tem certeza que deseja deletar TODOS os itens?",
+      async () => {
+        try {
+          setRecords([]);
+          await AsyncStorage.setItem(STORE_KEY, JSON.stringify([]));
+        } catch (error) {
+          console.error("Erro ao limpar:", error);
+        }
+      },
+    );
+  };
+
+  const calcularTotalCarrinho = () => {
+    return records.reduce((soma, item) => {
+      const valor = typeof item.valor === "number" ? item.valor : 0;
+      return soma + valor;
+    }, 0);
+  };
+
+  const renderItem = ({ item }: { item: ScannedRecord }) => {
+    const valor = typeof item.valor === "number" ? item.valor : 0;
+    return (
       <View style={styles.itemContainer}>
-        {item.urlOriginal ? (
-          // Layout de geolocalização (🗺️ verde)
-          <>
-            <Text style={[styles.dataHeader, { color: "#28a745" }]}>
-              🗺️ Localização (Toque para abrir no Mapa)
-            </Text>
-            <Text style={styles.dataContent}>{item.data}</Text>
-          </>
-        ) : item.tipo === "produto" ? (
-          // Layout de produto (🛒 laranja)
-          <>
-            <Text style={[styles.dataHeader, { color: "#ff6600" }]}>
-              🛒 Produto
-            </Text>
-            <Text style={styles.dataContent}>{item.data}</Text>
-          </>
-        ) : (
-          // Layout genérico / patrimônio (mantido)
-          <>
-            <Text style={styles.dataHeader}>Dados do QR Code:</Text>
-            <Text style={styles.dataContent} numberOfLines={1}>
-              {item.data}
-            </Text>
-          </>
-        )}
-        <Text style={styles.timestamp}>
-          Salvo em: {new Date(item.timestamp).toLocaleDateString()} às{" "}
-          {new Date(item.timestamp).toLocaleTimeString()}
-        </Text>
+        <View style={styles.itemContent}>
+          <Text style={styles.dataHeader}>Item:</Text>
+          <Text style={styles.dataContent}>{item.nome}</Text>
+          <Text style={styles.descriptionText}>{item.descricao}</Text>
+          <Text style={styles.valorText}>R$ {valor.toFixed(2)}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => {
+            console.log("Clicou no botão delete para ID:", item.id);
+            deleteItem(item.id);
+          }}
+          activeOpacity={0.6}
+        >
+          <Text style={styles.deleteButtonText}>✕</Text>
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   if (isLoading && records.length === 0) {
     return (
       <View style={[styles.container, styles.center]}>
         <ActivityIndicator size="large" color="#007bff" />
-        <Text style={styles.loadingText}>Carregando Histórico...</Text>
+        <Text style={styles.loadingText}>Carregando histórico...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {records.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>
-            Nenhum registro de QR Code encontrado.
-          </Text>
-          <Text style={styles.emptySubText}>
-            Escaneie um código para começar.
-          </Text>
-        </View>
-      ) : (
-        <FlatList<ScannedRecord>
-          data={records}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
-          }
-        />
-      )}
+      {/* Área scrollável — ocupa todo espaço disponível */}
+      <View style={styles.listArea}>
+        {records.length === 0 ? (
+          <View style={styles.center}>
+            <Text style={styles.emptyText}>Nenhum produto salvo.</Text>
+            <Text style={styles.emptySubText}>
+              Escaneie um QR Code para salvar produtos.
+            </Text>
+          </View>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={styles.clearAllButton}
+              onPress={clearAllItems}
+            >
+              <Text style={styles.clearAllButtonText}>🗑️ Limpar Histórico</Text>
+            </TouchableOpacity>
+
+            {/* FlatList com style flex:1 — essencial para scroll no Expo Web */}
+            <FlatList<ScannedRecord>
+              style={styles.flatList}
+              data={records}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={renderItem}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={true}
+              refreshControl={
+                <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+              }
+            />
+          </>
+        )}
+      </View>
+
+      {/* Barra do totalizador — filho normal do flex, fica sempre no rodapé */}
+      <View style={styles.totalContainer}>
+        <Text style={styles.totalLabel}>Total do carrinho</Text>
+        <Text style={styles.totalValue}>
+          R$ {calcularTotalCarrinho().toFixed(2)}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -155,6 +276,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
+    flexDirection: "column",
   },
   center: {
     flex: 1,
@@ -162,49 +284,122 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
+  // Ocupa todo o espaço vertical restante acima do totalContainer
+  listArea: {
+    flex: 1,
+  },
+  // flex:1 no próprio FlatList é obrigatório para scroll no Expo Web
+  flatList: {
+    flex: 1,
+  },
   listContent: {
-    padding: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
   },
   itemContainer: {
     backgroundColor: "#ffffff",
-    padding: 15,
+    borderRadius: 10,
+    padding: 16,
     marginVertical: 8,
-    borderRadius: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
     elevation: 2,
+  },
+  itemContent: {
+    flex: 1,
+    marginRight: 12,
   },
   dataHeader: {
     fontSize: 14,
     fontWeight: "bold",
-    color: "#6c757d",
+    color: "#333",
     marginBottom: 4,
   },
   dataContent: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#007bff",
+    color: "#111",
+    marginBottom: 6,
+  },
+  descriptionText: {
+    fontSize: 13,
+    color: "#555",
     marginBottom: 8,
   },
-  timestamp: {
-    fontSize: 12,
-    color: "#6c757d",
+  valorText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#28a745",
+    marginTop: 4,
+  },
+  deleteButton: {
+    backgroundColor: "#dc3545",
+    padding: 10,
+    borderRadius: 6,
+    justifyContent: "center",
+    alignItems: "center",
+    minWidth: 45,
+    minHeight: 45,
+  },
+  deleteButtonText: {
+    fontSize: 18,
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  clearAllButton: {
+    backgroundColor: "#dc3545",
+    padding: 12,
+    marginHorizontal: 16,
+    marginVertical: 10,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  clearAllButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  // Sem position:absolute — é filho normal, sempre visível no rodapé
+  totalContainer: {
+    backgroundColor: "#ffffff",
+    borderTopWidth: 1,
+    borderTopColor: "#ddd",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  totalLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#333",
+  },
+  totalValue: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#28a745",
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 12,
     fontSize: 16,
     color: "#007bff",
   },
   emptyText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#343a40",
+    color: "#333",
+    marginBottom: 8,
   },
   emptySubText: {
     fontSize: 14,
-    color: "#6c757d",
-    marginTop: 5,
+    color: "#555",
+    textAlign: "center",
   },
 });
