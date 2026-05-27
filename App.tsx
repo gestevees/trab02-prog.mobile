@@ -7,6 +7,7 @@ import HomeScreen from "./src/screens/HomeScreen";
 import ScannerScreen from "./src/screens/ScannerScreen";
 import HistoryScreen from "./src/screens/HistoryScreen";
 import ConfirmationScreen from "./src/screens/ConfirmationScreen";
+import CartScreen from "./src/screens/CartScreen";
 
 // 2. Defina e EXPORTE o tipo com as rotas do app
 export type RootStackParamList = {
@@ -22,12 +23,14 @@ export type RootStackParamList = {
   Confirmation: {
     scannedData: string;
   };
+
+  Cart: undefined;
 };
 
 // 3. Passe o tipo criado para o Stack Navigator
 const Stack = createStackNavigator<RootStackParamList>();
 
-export default function App(): JSX.Element {
+export default function App(): React.JSX.Element {
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Home">
@@ -54,7 +57,14 @@ export default function App(): JSX.Element {
           component={ConfirmationScreen}
           options={{ title: "Resultado da Leitura" }}
         />
+
+        <Stack.Screen
+          name="Cart"
+          component={CartScreen}
+          options={{ title: "Carrinho de Compras" }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
+

@@ -21,6 +21,12 @@ export default function HomeScreen({
         onPress={() => navigation.navigate("History")}
         color="#28a745"
       />
+      <View style={styles.spacer} />
+      <Button
+        title="Ver Carrinho de Compras"
+        onPress={() => navigation.navigate("Cart")}
+        color="#ff6600"
+      />
     </View>
   );
 }

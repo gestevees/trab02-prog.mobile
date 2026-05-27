@@ -148,9 +148,18 @@ export default function ConfirmationScreen({
       await AsyncStorage.setItem(STORE_KEY, JSON.stringify(dataArray));
 
       Alert.alert(
-        "Sucesso! 🛒",
-        `"${produtoDados.nome}" foi adicionado ao carrinho.`,
-        [{ text: "OK" }],
+        "Produto Adicionado! 🛒",
+        `"${produtoDados.nome}" foi adicionado ao seu carrinho de compras com sucesso.`,
+        [
+          {
+            text: "Continuar Comprando",
+            style: "cancel",
+          },
+          {
+            text: "Ir para o Carrinho",
+            onPress: () => navigation.navigate("Cart"),
+          },
+        ],
       );
       setStatus("Produto adicionado ao carrinho com sucesso!");
     } catch (e) {
